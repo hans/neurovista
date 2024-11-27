@@ -37,7 +37,9 @@ def _check_subjects_dir(subjects_dir) -> str:
 
 
 def plot_results(results: pd.DataFrame, subjects_dir=None,
-                 hemi: Hemisphere = 'lh', surf='pial', show=False, **kwargs):
+                 hemi: Hemisphere = 'lh', surf='pial', show=False,
+                 cmap="Oranges",
+                 **kwargs):
     assert {"subject", "channel", "value"} <= set(results.columns)
     assert results.subject.nunique() == 1
     assert results.channel.value_counts().max() == 1
@@ -56,10 +58,10 @@ def plot_results(results: pd.DataFrame, subjects_dir=None,
     surface_path = Path(subjects_dir) / subject / 'surf' / f'{hemi}.{surf}'
     surf = _read_mri_surface(surface_path)
 
-    pl: pv.plotting.plotter.Plotter = pv.Plotter()
+    pl = pv.Plotter()
 
     brain_mesh = pv.PolyData(surf['rr'] * 1000, np.concatenate([np.array([3] * len(surf['tris']))[:, None], surf['tris']], axis=1))
-    pl.add_mesh(brain_mesh, color='lightgrey', opacity=0.9)
+    pl.add_mesh(brain_mesh, color='lightgrey', opacity=0.95)
     pl.camera_position = "yz"  # DEV assumes lh
     pl.camera.azimuth = 180
     pl.camera.zoom(1.5)
@@ -69,8 +71,6 @@ def plot_results(results: pd.DataFrame, subjects_dir=None,
     specular = 1
     specular_power = 16
     diffuse = 0.6995
-
-    cmap = "Oranges"
     
     if "background" in results.columns:
         plot_electrode_idx = results[~results.background].index
@@ -82,6 +82,10 @@ def plot_results(results: pd.DataFrame, subjects_dir=None,
     plot_data = results.loc[plot_electrode_idx]
     if len(plot_data) > 0:
         plot_electrodes = electrodes.coordinates[plot_data.channel - 1, :3]
+
+        # pull out from surface
+        plot_electrodes += np.array([-1, 0, 0])[None, :]
+
         elec_mesh = pv.PolyData(plot_electrodes)
         elec_mesh['value'] = plot_data.value
 
@@ -101,6 +105,10 @@ def plot_results(results: pd.DataFrame, subjects_dir=None,
     if background_idx is not None and len(background_idx) > 0:
         background_data = results.loc[background_idx]
         background_electrodes = electrodes.coordinates[background_data.channel - 1, :3]
+
+        # pull out from surface
+        background_electrodes += np.array([-1, 0, 0])[None, :]
+
         background_mesh = pv.PolyData(background_electrodes)
 
         pl.add_mesh(

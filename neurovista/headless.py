@@ -10,7 +10,7 @@ import numpy as np
 import pyvista as pv
 
 
-def plot_matplotlib(pl: pv.plotting.plotter.Plotter, **savefig_kwargs):
+def plot_matplotlib(pl, **savefig_kwargs):
     """Render a matplotlib plot to Jupyter output"""
     from base64 import b64encode
     from io import BytesIO
@@ -54,7 +54,7 @@ class HeadlessPlotter(object):
     def __enter__(self):
         return self
     
-    def add(self, name: str, pl: pv.plotting.plotter.Plotter):
+    def add(self, name: str, pl):
         pl.screenshot(str(Path(self.outdir) / name))
         
     def __exit__(self, type, value, traceback):
