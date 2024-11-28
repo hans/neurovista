@@ -63,8 +63,11 @@ def render_brain_surface(plotter, subject: str, subjects_dir: str,
     brain_mesh = pv.PolyData(vertices, tris)
     plotter.add_mesh(brain_mesh, color=surface_config.color, opacity=surface_config.opacity)
 
-    plotter.camera_position = "yz"  # DEV assumes lh
-    plotter.camera.azimuth = 180
+    plotter.camera_position = "yz"
+    if surface_config.hemi == "lh":
+        plotter.camera.azimuth = 180
+    elif surface_config.hemi == "rh":
+        plotter.camera.azimuth = 0
     plotter.camera.zoom(1.5)
 
 
