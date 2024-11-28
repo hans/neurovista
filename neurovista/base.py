@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import cast
+from typing import cast, Optional, TypeAlias
 
 from matplotlib import cm
 import matplotlib.colors
@@ -11,9 +11,10 @@ import pyvista as pv
 from scipy.io import loadmat
 import seaborn as sns
 
-from neurovista import colors
-from neurovista.types import Hemisphere
+from neurovista import colors, config
 from neurovista.types import ElectrodeAnatomy
+from neurovista.types import Hemisphere
+
 
 
 def load_electrode_anatomy(subject, subjects_dir, warped=False):
@@ -45,12 +46,35 @@ def _check_results(results: pd.DataFrame) -> pd.DataFrame:
     return results
 
 
-def plot_results(results: pd.DataFrame, subjects_dir=None,
-                 hemi: Hemisphere = 'lh', surf='pial', show=False,
-                 cmap="Oranges",
-                 **kwargs):
-    results = _check_results(results)
+def make_plotter(config: config.SceneConfig) -> pv.Plotter:
+    pl = pv.Plotter()
+    # pl.background_color = config.background_color
 
+    return pl
+
+
+def render_brain_surface(plotter, subject: str, subjects_dir: str,
+                         surface_config: config.BrainSurface):
+    surface_path = Path(subjects_dir) / subject / 'surf' / f'{surface_config.hemi}.{surface_config.surf}'
+    surf = _read_mri_surface(surface_path)
+
+    vertices = surf['rr'] * 1000  # type: ignore
+    tris = np.concatenate([np.array([3] * len(surf['tris']))[:, None], surf['tris']], axis=1)  # type: ignore
+    brain_mesh = pv.PolyData(vertices, tris)
+    plotter.add_mesh(brain_mesh, color=surface_config.color, opacity=surface_config.opacity)
+
+    plotter.camera_position = "yz"  # DEV assumes lh
+    plotter.camera.azimuth = 180
+    plotter.camera.zoom(1.5)
+
+
+def plot_results(results: pd.DataFrame,
+                 surface_config: config.BrainSurface = config.BrainSurface(),
+                 electrode_config: config.Electrodes = config.Electrodes(),
+                 scene_config: config.SceneConfig = config.SceneConfig(),
+                 subjects_dir=None,
+                 show=True, cmap="Oranges"):
+    results = _check_results(results)
     if len(results) == 0:
         raise ValueError("No results to plot")
 
@@ -60,23 +84,9 @@ def plot_results(results: pd.DataFrame, subjects_dir=None,
 
     assert len(electrodes) >= results.channel.max()
 
-    surface_path = Path(subjects_dir) / subject / 'surf' / f'{hemi}.{surf}'
-    surf = _read_mri_surface(surface_path)
+    pl = make_plotter(scene_config)
+    render_brain_surface(pl, subject, subjects_dir, surface_config)
 
-    pl = pv.Plotter()
-
-    brain_mesh = pv.PolyData(surf['rr'] * 1000, np.concatenate([np.array([3] * len(surf['tris']))[:, None], surf['tris']], axis=1))
-    pl.add_mesh(brain_mesh, color='lightgrey', opacity=1.0)
-    pl.camera_position = "yz"  # DEV assumes lh
-    pl.camera.azimuth = 180
-    pl.camera.zoom(1.5)
-
-    # plot electrodes
-    ambient = 0.3261
-    specular = 1
-    specular_power = 16
-    diffuse = 0.6995
-    
     if "background" in results.columns:
         plot_electrode_idx = results[~results.background].index
         background_idx = results[results.background].index
@@ -89,7 +99,7 @@ def plot_results(results: pd.DataFrame, subjects_dir=None,
         plot_electrodes = electrodes.coordinates[plot_data.channel - 1, :3]
 
         # pull out from surface
-        plot_electrodes += np.array([-1, 0, 0])[None, :]
+        plot_electrodes += np.array(electrode_config.shift)[None, :]
 
         elec_mesh = pv.PolyData(plot_electrodes)
         elec_mesh['value'] = plot_data.value
@@ -97,13 +107,13 @@ def plot_results(results: pd.DataFrame, subjects_dir=None,
         pl.add_mesh(
             elec_mesh,
             scalars='value',
-            point_size=10,
+            point_size=electrode_config.size,
             render_points_as_spheres=True,
             cmap=cmap,
-            ambient=ambient,
-            specular=specular,
-            specular_power=specular_power,
-            diffuse=diffuse,
+            ambient=electrode_config.ambient,
+            specular=electrode_config.specular,
+            specular_power=electrode_config.specular_power,
+            diffuse=electrode_config.diffuse,
             show_scalar_bar=True,
         )
 
@@ -112,19 +122,19 @@ def plot_results(results: pd.DataFrame, subjects_dir=None,
         background_electrodes = electrodes.coordinates[background_data.channel - 1, :3]
 
         # pull out from surface
-        background_electrodes += np.array([-1, 0, 0])[None, :]
+        background_electrodes += np.array(electrode_config.shift)[None, :]
 
         background_mesh = pv.PolyData(background_electrodes)
 
         pl.add_mesh(
             background_mesh,
-            point_size=5,
+            point_size=electrode_config.size / 2,
             render_points_as_spheres=True,
             color='grey',
-            ambient=ambient,
-            specular=specular,
-            specular_power=specular_power,
-            diffuse=diffuse,
+            ambient=electrode_config.ambient,
+            specular=electrode_config.specular,
+            specular_power=electrode_config.specular_power,
+            diffuse=electrode_config.diffuse,
             show_scalar_bar=False,
         )
 
@@ -135,30 +145,17 @@ def plot_results(results: pd.DataFrame, subjects_dir=None,
 
 
 def plot_reconstruction(subject, subjects_dir=None,
-                        hemi: Hemisphere = 'lh',
-                        surf='pial', show=False, **kwargs):
+                        brain_surface_config: config.BrainSurface = config.BrainSurface(),
+                        electrodes_config: config.Electrodes = config.Electrodes(),
+                        scene_config: config.SceneConfig = config.SceneConfig(),
+                        show=True):
     subjects_dir = _check_subjects_dir(subjects_dir)
-
     electrodes = load_electrode_anatomy(subject, subjects_dir, warped=False)
 
-    surface_path = Path(subjects_dir) / subject / 'surf' / f'{hemi}.{surf}'
-    surf = _read_mri_surface(surface_path)
+    pl = make_plotter(scene_config)
+    render_brain_surface(pl, subject, subjects_dir, brain_surface_config)
 
     all_labels = sorted(np.unique(electrodes.anatomy_labels))
-
-    pl: pv.plotting.plotter.Plotter = pv.Plotter()
-    
-    brain_mesh = pv.PolyData(surf['rr'] * 1000, np.concatenate([np.array([3] * len(surf['tris']))[:, None], surf['tris']], axis=1))
-    pl.add_mesh(brain_mesh, color='lightgrey')
-    pl.camera_position = "yz"  # DEV assumes lh
-    pl.camera.azimuth = 180
-    pl.camera.zoom(1.5)
-
-    # plot electrodes
-    ambient = 0.3261
-    specular = 1
-    specular_power = 16
-    diffuse = 0.6995
 
     cmap = sns.color_palette("viridis", len(all_labels))
 
@@ -168,7 +165,12 @@ def plot_reconstruction(subject, subjects_dir=None,
         glyph = point_cloud.glyph(orient=False, scale=False, geom=pv.Sphere(radius=1))
 
         color = [int(x) for x in colors.freesurfer.get(f"ctx-lh-{label}", cmap[i])]
-        pl.add_mesh(glyph, color=color, ambient=ambient, specular=specular, specular_power=specular_power, diffuse=diffuse)
+        pl.add_mesh(glyph, color=color,
+                    ambient=electrodes_config.ambient,
+                    specular=electrodes_config.specular,
+                    specular_power=electrodes_config.specular_power,
+                    diffuse=electrodes_config.diffuse,
+                    show_scalar_bar=False)
 
     # annotate with numbers
     pl.add_point_labels(electrodes.coordinates + np.array([-1, 0, 0]),
