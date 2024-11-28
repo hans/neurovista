@@ -1,0 +1,13 @@
+{% set version = "9.3.1.dev1" %}
+
+package:
+  name: vtk
+  version: {{ version }}
+
+build:
+  number: 0
+  string: qt_py39he5e186c_209
+  noarch: generic
+
+about:
+  summary: Dummy package for externally built VTK
