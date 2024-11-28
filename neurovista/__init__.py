@@ -1,1 +1,1 @@
-from neurovista.base import plot_reconstruction
+from neurovista.base import plot_reconstruction, plot_results

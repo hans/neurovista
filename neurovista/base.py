@@ -36,15 +36,20 @@ def _check_subjects_dir(subjects_dir) -> str:
     return subjects_dir
 
 
-def plot_results(results: pd.DataFrame, subjects_dir=None,
-                 hemi: Hemisphere = 'lh', surf='pial', show=False,
-                 cmap="Oranges",
-                 **kwargs):
+def _check_results(results: pd.DataFrame) -> pd.DataFrame:
     assert {"subject", "channel", "value"} <= set(results.columns)
     assert results.subject.nunique() == 1
     assert results.channel.value_counts().max() == 1
     if results.value.dtype != float:
         raise NotImplementedError()
+    return results
+
+
+def plot_results(results: pd.DataFrame, subjects_dir=None,
+                 hemi: Hemisphere = 'lh', surf='pial', show=False,
+                 cmap="Oranges",
+                 **kwargs):
+    results = _check_results(results)
 
     if len(results) == 0:
         raise ValueError("No results to plot")
@@ -61,7 +66,7 @@ def plot_results(results: pd.DataFrame, subjects_dir=None,
     pl = pv.Plotter()
 
     brain_mesh = pv.PolyData(surf['rr'] * 1000, np.concatenate([np.array([3] * len(surf['tris']))[:, None], surf['tris']], axis=1))
-    pl.add_mesh(brain_mesh, color='lightgrey', opacity=0.95)
+    pl.add_mesh(brain_mesh, color='lightgrey', opacity=1.0)
     pl.camera_position = "yz"  # DEV assumes lh
     pl.camera.azimuth = 180
     pl.camera.zoom(1.5)
