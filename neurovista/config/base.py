@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-import re
+from dataclasses import dataclass, field
 
 from omegaconf import MISSING
 
@@ -8,28 +7,24 @@ from neurovista.types import Hemisphere
 
 @dataclass
 class DataConfig:
-    _label = "data"
 
     subjects_dir: str = MISSING
 
 
 @dataclass
 class SceneConfig:
-    _label = "scene"
-
     background_color: str = 'white'
 
 
-@dataclass
 class PlotElement:
-    _label = "plot"
+    pass
 
 
 @dataclass
-class BrainSurface(PlotElement):
+class BrainSurfaceConfig(PlotElement):
     _label = "brain_surface"
 
-    hemi: Hemisphere = 'lh'
+    hemi: Hemisphere = Hemisphere.LEFT
     surf: str = 'pial'
 
     surface_color: str = 'lightgrey'
@@ -37,9 +32,7 @@ class BrainSurface(PlotElement):
 
 
 @dataclass
-class Electrodes(PlotElement):
-    _label = "electrodes"
-
+class ElectrodesConfig(PlotElement):
     ambient: float = 0.3261
     specular: float = 1.0
     specular_power: float = 16.0
@@ -51,3 +44,11 @@ class Electrodes(PlotElement):
     Shift electrode positions by this amount before plotting.
     This can be useful to clearly separate electrodes from the brain surface.
     """
+
+
+@dataclass
+class PlotConfig:
+    data: DataConfig = field(default_factory=DataConfig)
+    scene: SceneConfig = field(default_factory=SceneConfig)
+    brain_surface: BrainSurfaceConfig = field(default_factory=BrainSurfaceConfig)
+    electrodes: ElectrodesConfig = field(default_factory=ElectrodesConfig)

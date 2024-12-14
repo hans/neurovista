@@ -1,10 +1,13 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Literal, TypeAlias
 
 import numpy as np
 
 
-Hemisphere: TypeAlias = Literal['lh', 'rh']
+class Hemisphere(Enum):
+    LEFT = "lh"
+    RIGHT = "rh"
 
 
 
