@@ -54,7 +54,7 @@ def _check_results(results: pd.DataFrame, multi_subject=False) -> pd.DataFrame:
 
 def make_plotter(config: config.SceneConfig) -> pv.Plotter:
     pl = pv.Plotter()
-    # pl.background_color = config.background_color
+    pl.background_color = config.background_color
 
     return pl
 
@@ -126,6 +126,7 @@ def plot_results_multi_subject(results: pd.DataFrame, show=True, cmap="Oranges",
             specular_power=cfg.electrodes.specular_power,
             diffuse=cfg.electrodes.diffuse,
             show_scalar_bar=True,
+            scalar_bar_args=cfg.scalar_bar.as_pv_dict(),
         )
 
     if background_idx is not None and len(background_idx) > 0:
@@ -202,6 +203,7 @@ def plot_results(results: pd.DataFrame, warped=False, show=True, cmap="Oranges",
             specular_power=cfg.electrodes.specular_power,
             diffuse=cfg.electrodes.diffuse,
             show_scalar_bar=True,
+            scalar_bar_args=cfg.scalar_bar.as_pv_dict(),
         )
 
     if background_idx is not None and len(background_idx) > 0:
