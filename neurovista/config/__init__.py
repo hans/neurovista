@@ -1,10 +1,14 @@
 from collections import defaultdict
 from functools import wraps
+import logging
 from typing import cast
 
 from omegaconf import OmegaConf, SCMode
 
 from neurovista.config.base import PlotConfig, BrainSurfaceConfig, ElectrodesConfig, SceneConfig, DataConfig
+
+
+L = logging.getLogger(__name__)
 
 
 class RuntimeConfig:
@@ -25,7 +29,8 @@ class RuntimeConfig:
     def get(cls):
         """Get the current global configuration."""
         if cls._config is None:
-            raise RuntimeError("RuntimeConfig is not initialized.")
+            L.warning("RuntimeConfig is not initialized. Initializing with default configuration.")
+            cls.initialize()
         return cls._config
 
     @classmethod
