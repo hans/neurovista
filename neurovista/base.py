@@ -30,7 +30,8 @@ def load_electrode_anatomy(subject, subjects_dir, warped=False):
     return ElectrodeAnatomy(coordinates, anatomy_labels)
 
 
-def _check_subjects_dir(subjects_dir) -> str:
+def _check_subjects_dir(data_config: config.DataConfig) -> str:
+    subjects_dir = data_config.subjects_dir
     if subjects_dir is None:
         subjects_dir = cast(str, mne.get_config('SUBJECTS_DIR', None))
     assert subjects_dir is not None, "subjects_dir must be provided or set in MNE config"
@@ -61,7 +62,7 @@ def render_brain_surface(plotter, subject: str, subjects_dir: str,
     vertices = surf['rr'] * 1000  # type: ignore
     tris = np.concatenate([np.array([3] * len(surf['tris']))[:, None], surf['tris']], axis=1)  # type: ignore
     brain_mesh = pv.PolyData(vertices, tris)
-    plotter.add_mesh(brain_mesh, color=surface_config.color, opacity=surface_config.opacity)
+    plotter.add_mesh(brain_mesh, color=surface_config.surface_color, opacity=surface_config.surface_opacity)
 
     plotter.camera_position = "yz"
     if surface_config.hemi == "lh":
@@ -71,24 +72,27 @@ def render_brain_surface(plotter, subject: str, subjects_dir: str,
     plotter.camera.zoom(1.5)
 
 
+@config.takes_config(config.DataConfig, config.BrainSurface, config.Electrodes, config.SceneConfig)
 def plot_results(results: pd.DataFrame,
-                 surface_config: config.BrainSurface = config.BrainSurface(),
-                 electrode_config: config.Electrodes = config.Electrodes(),
-                 scene_config: config.SceneConfig = config.SceneConfig(),
-                 subjects_dir=None,
+                 data_config: config.DataConfig,
+                 brain_surface_config: config.BrainSurface,
+                 electrodes_config: config.Electrodes,
+                 scene_config: config.SceneConfig,
+                 warped=False,
+                 warped_subject=None,
                  show=True, cmap="Oranges"):
+    subjects_dir = _check_subjects_dir(data_config)
     results = _check_results(results)
     if len(results) == 0:
         raise ValueError("No results to plot")
 
-    subjects_dir = _check_subjects_dir(subjects_dir)
     subject = results.subject.iloc[0]
-    electrodes = load_electrode_anatomy(subject, subjects_dir, warped=False)
+    electrodes = load_electrode_anatomy(subject, subjects_dir, warped=warped)
 
     assert len(electrodes) >= results.channel.max()
 
     pl = make_plotter(scene_config)
-    render_brain_surface(pl, subject, subjects_dir, surface_config)
+    render_brain_surface(pl, subject, subjects_dir, brain_surface_config)
 
     if "background" in results.columns:
         plot_electrode_idx = results[~results.background].index
@@ -102,7 +106,7 @@ def plot_results(results: pd.DataFrame,
         plot_electrodes = electrodes.coordinates[plot_data.channel - 1, :3]
 
         # pull out from surface
-        plot_electrodes += np.array(electrode_config.shift)[None, :]
+        plot_electrodes += np.array(electrodes_config.shift)[None, :]
 
         elec_mesh = pv.PolyData(plot_electrodes)
         elec_mesh['value'] = plot_data.value
@@ -110,13 +114,13 @@ def plot_results(results: pd.DataFrame,
         pl.add_mesh(
             elec_mesh,
             scalars='value',
-            point_size=electrode_config.size,
+            point_size=electrodes_config.size,
             render_points_as_spheres=True,
             cmap=cmap,
-            ambient=electrode_config.ambient,
-            specular=electrode_config.specular,
-            specular_power=electrode_config.specular_power,
-            diffuse=electrode_config.diffuse,
+            ambient=electrodes_config.ambient,
+            specular=electrodes_config.specular,
+            specular_power=electrodes_config.specular_power,
+            diffuse=electrodes_config.diffuse,
             show_scalar_bar=True,
         )
 
@@ -125,19 +129,19 @@ def plot_results(results: pd.DataFrame,
         background_electrodes = electrodes.coordinates[background_data.channel - 1, :3]
 
         # pull out from surface
-        background_electrodes += np.array(electrode_config.shift)[None, :]
+        background_electrodes += np.array(electrodes_config.shift)[None, :]
 
         background_mesh = pv.PolyData(background_electrodes)
 
         pl.add_mesh(
             background_mesh,
-            point_size=electrode_config.size / 2,
+            point_size=electrodes_config.size / 2,
             render_points_as_spheres=True,
             color='grey',
-            ambient=electrode_config.ambient,
-            specular=electrode_config.specular,
-            specular_power=electrode_config.specular_power,
-            diffuse=electrode_config.diffuse,
+            ambient=electrodes_config.ambient,
+            specular=electrodes_config.specular,
+            specular_power=electrodes_config.specular_power,
+            diffuse=electrodes_config.diffuse,
             show_scalar_bar=False,
         )
 
@@ -146,13 +150,14 @@ def plot_results(results: pd.DataFrame,
     return pl
 
 
-
-def plot_reconstruction(subject, subjects_dir=None,
-                        brain_surface_config: config.BrainSurface = config.BrainSurface(),
-                        electrodes_config: config.Electrodes = config.Electrodes(),
-                        scene_config: config.SceneConfig = config.SceneConfig(),
+@config.takes_config(config.DataConfig, config.BrainSurface, config.Electrodes, config.SceneConfig)
+def plot_reconstruction(subject,
+                        data_config: config.DataConfig,
+                        brain_surface_config: config.BrainSurface,
+                        electrodes_config: config.Electrodes,
+                        scene_config: config.SceneConfig,
                         show=True):
-    subjects_dir = _check_subjects_dir(subjects_dir)
+    subjects_dir = _check_subjects_dir(data_config)
     electrodes = load_electrode_anatomy(subject, subjects_dir, warped=False)
 
     pl = make_plotter(scene_config)
